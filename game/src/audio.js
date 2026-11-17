@@ -1,44 +1,53 @@
-// All sound is synthesised with WebAudio — no audio files, no network.
-// Engine hum, sirens, gunshots, punches, pickups, mission jingles and a small
-// original bass-and-chords loop. Created lazily on the first user gesture.
+// Every sound in Solara Bay is synthesised with WebAudio — no audio files,
+// no network. A tiny bass-and-chords loop plays under the game, and short
+// blips cover gunshots, punches, crashes, sirens and mission jingles.
+// The AudioContext is created lazily on the first user gesture.
 
-const NOTES = [55, 55, 65.41, 49, 55, 65.41, 73.42, 65.41]; // A1 A1 C2 G1 ...
+const BASS_LINE = [55, 55, 65.41, 49, 55, 65.41, 73.42, 65.41]; // A1 A1 C2 G1 ...
+const MISSION_ARP = [523, 659, 784, 1046];
+const BUSTED_ARP = [392, 330, 262, 196];
 
 export function createAudio() {
-  let ctx = null;
+  let actx = null;
   let muted = false;
-  let musicTimer = null;
-  let beat = 0;
+  let loopId = null;
+  let step = 0;
 
-  function ensure() {
-    if (ctx) return ctx;
+  function audioCtx() {
+    if (actx) return actx;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
-      ctx = new AC();
-      return ctx;
+      actx = new AC();
+      return actx;
     } catch {
       return null;
     }
   }
 
-  function tone(freq, dur, type, gain, when = 0, slideTo = 0) {
-    if (muted || !ensure()) return;
-    const t0 = ctx.currentTime + when;
+  /** One oscillator blip: a tone that slides and fades out. */
+  function blip(freq, dur, wave, vol, delay = 0, slide = 0) {
+    if (muted) return;
+    const ctx = audioCtx();
+    if (!ctx) return;
+    const start = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
-    const g = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, t0);
-    if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + dur);
-    g.gain.setValueAtTime(gain, t0);
-    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
-    osc.connect(g).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + dur + 0.02);
+    const gain = ctx.createGain();
+    osc.type = wave;
+    osc.frequency.setValueAtTime(freq, start);
+    if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(20, slide), start + dur);
+    gain.gain.setValueAtTime(vol, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(start);
+    osc.stop(start + dur + 0.02);
   }
 
-  function noise(dur, gain, lowpass) {
-    if (muted || !ensure()) return;
-    const t0 = ctx.currentTime;
+  /** Filtered noise burst: the thud behind punches, shots and crashes. */
+  function thud(dur, vol, cutoff) {
+    if (muted) return;
+    const ctx = audioCtx();
+    if (!ctx) return;
     const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -47,42 +56,59 @@ export function createAudio() {
     src.buffer = buf;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = lowpass;
-    const g = ctx.createGain();
-    g.gain.value = gain;
-    src.connect(filter).connect(g).connect(ctx.destination);
-    src.start(t0);
+    filter.frequency.value = cutoff;
+    const gain = ctx.createGain();
+    gain.gain.value = vol;
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(ctx.currentTime);
   }
 
-  function startMusic() {
-    if (musicTimer !== null || !ensure()) return;
-    musicTimer = window.setInterval(() => {
-      if (muted || ctx.state !== 'running') return;
-      const root = NOTES[beat % NOTES.length];
-      tone(root, 0.5, 'triangle', 0.10);
-      tone(root * 2, 0.22, 'square', 0.03);
-      if (beat % 4 === 0) tone(root * 4, 0.4, 'sine', 0.05);
-      beat += 1;
+  /** A short melody: each [freq, delay] pair is one blip. */
+  function tune(notes, wave, vol, noteDur, gap) {
+    notes.forEach((freq, i) => blip(freq, noteDur, wave, vol, i * gap));
+  }
+
+  function startLoop() {
+    if (loopId !== null) return;
+    if (!audioCtx()) return;
+    loopId = window.setInterval(() => {
+      if (muted || !actx || actx.state !== 'running') return;
+      const root = BASS_LINE[step % BASS_LINE.length];
+      blip(root, 0.5, 'triangle', 0.1);
+      blip(root * 2, 0.22, 'square', 0.03);
+      if (step % 4 === 0) blip(root * 4, 0.4, 'sine', 0.05);
+      step += 1;
     }, 300);
   }
 
   return {
-    unlock() { ensure(); if (ctx && ctx.state === 'suspended') ctx.resume(); startMusic(); },
-    toggleMute() { muted = !muted; return muted; },
+    unlock() {
+      const ctx = audioCtx();
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+      startLoop();
+    },
+    toggleMute() {
+      muted = !muted;
+      return muted;
+    },
     isMuted() { return muted; },
-    click() { tone(660, 0.07, 'square', 0.06); },
-    punch() { noise(0.12, 0.25, 900); tone(120, 0.1, 'sine', 0.2, 0, 60); },
-    shoot() { noise(0.14, 0.4, 3200); tone(900, 0.08, 'square', 0.12, 0, 120); },
-    crash() { noise(0.3, 0.4, 700); tone(90, 0.25, 'sine', 0.25, 0, 40); },
-    pickup() { tone(880, 0.09, 'sine', 0.12); tone(1320, 0.14, 'sine', 0.12, 0.09); },
-    cash() { tone(1046, 0.1, 'triangle', 0.14); tone(1318, 0.1, 'triangle', 0.14, 0.08); tone(1568, 0.2, 'triangle', 0.14, 0.16); },
-    siren() { tone(700, 0.5, 'sine', 0.05, 0, 950); tone(950, 0.5, 'sine', 0.05, 0.5, 700); },
-    mission() { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.18, 'triangle', 0.14, i * 0.11)); },
-    horn() { tone(370, 0.18, 'square', 0.08); tone(466, 0.18, 'square', 0.06); },
-    busted() { [392, 330, 262, 196].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.08, i * 0.22)); },
+    click() { blip(660, 0.07, 'square', 0.06); },
+    punch() { thud(0.12, 0.25, 900); blip(120, 0.1, 'sine', 0.2, 0, 60); },
+    shoot() { thud(0.14, 0.4, 3200); blip(900, 0.08, 'square', 0.12, 0, 120); },
+    crash() { thud(0.3, 0.4, 700); blip(90, 0.25, 'sine', 0.25, 0, 40); },
+    pickup() { blip(880, 0.09, 'sine', 0.12); blip(1320, 0.14, 'sine', 0.12, 0.09); },
+    cash() { blip(1046, 0.1, 'triangle', 0.14); blip(1318, 0.1, 'triangle', 0.14, 0.08); blip(1568, 0.2, 'triangle', 0.14, 0.16); },
+    siren() { blip(700, 0.5, 'sine', 0.05, 0, 950); blip(950, 0.5, 'sine', 0.05, 0.5, 700); },
+    mission() { tune(MISSION_ARP, 'triangle', 0.14, 0.18, 0.11); },
+    horn() { blip(370, 0.18, 'square', 0.08); blip(466, 0.18, 'square', 0.06); },
+    busted() { tune(BUSTED_ARP, 'sawtooth', 0.08, 0.3, 0.22); },
     engine(speed01) {
-      if (muted || !ensure() || ctx.state !== 'running') return;
-      tone(50 + speed01 * 90, 0.09, 'sawtooth', 0.02 + speed01 * 0.02);
+      const ctx = audioCtx();
+      const level = Math.min(1, Math.max(0, speed01 || 0));
+      if (muted || !ctx || ctx.state !== 'running') return;
+      blip(50 + level * 90, 0.09, 'sawtooth', 0.02 + level * 0.02);
     },
   };
 }

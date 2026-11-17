@@ -1,14 +1,19 @@
 // Missions and the story: five jobs from Otto, plus repeatable side deliveries.
 // A mission is a list of stages; each stage is one check (steal a car, reach a
-// marker, collect bags, survive a chase). Completing a stage pays the reward and
+// marker, collect bags, survive a chase). Finishing a stage pays the reward and
 // unlocks the next mission. The story is Mara Voss, an original character.
 
 import { MISSION_DEFS, SIDE_JOB } from './config.js';
 import { distance } from './random.js';
 
+const BAG_CASH = 150;
+const ARRIVE_DIST = 70;
+const BAG_DIST = 44;
+
+/** Fresh mission state: which job, which stage, bags, gang, messages. */
 export function createMissionState() {
   return {
-    index: 0, // which mission is active (0-based); MISSION_DEFS.length = story done
+    index: 0, // which mission is next (0-based); MISSION_DEFS.length = story done
     stage: 0,
     active: false,
     timer: 0,
@@ -33,6 +38,62 @@ export function currentStage(missions) {
   return def ? def.stages[missions.stage] : null;
 }
 
+/** Show a line in the dialogue bar for a few seconds. */
+export function say(missions, text, seconds = 6) {
+  missions.message = text;
+  missions.messageTimer = seconds;
+}
+
+/** Heat for a stage that demands a wanted level: 3 stars or 4 stars. */
+function heatForWanted(wanted) {
+  return wanted === 3 ? 120 : 200;
+}
+
+function spawnBags(missions, stage, random) {
+  missions.bags = [];
+  for (let i = 0; i < stage.count; i += 1) {
+    missions.bags.push({
+      x: stage.x + random.range(-160, 160),
+      y: stage.y + random.range(-120, 120),
+      taken: false,
+    });
+  }
+}
+
+function spawnGang(missions, stage, random) {
+  missions.enemies = [];
+  for (let i = 0; i < 4; i += 1) {
+    missions.enemies.push({
+      x: stage.x + random.range(-220, 220),
+      y: stage.y + random.range(-180, 180),
+      angle: 0,
+      speed: 70,
+      shirt: '#3a3f46',
+      skin: '#c98a5a',
+      gang: true,
+      health: 60,
+      flee: 0,
+      targetX: stage.x,
+      targetY: stage.y,
+      retarget: 3,
+      shootTimer: random.range(0.5, 2),
+      dead: false,
+    });
+  }
+}
+
+/** Apply a stage's opening conditions: heat, timer, survive clock, bags, gang. */
+function armStage(missions, world, stage, random) {
+  if (!stage) return;
+  if (stage.kind === 'collect' && stage.count > 0) {
+    spawnBags(missions, stage, random);
+    spawnGang(missions, stage, random);
+  }
+  if (stage.wanted) world.police.heat = Math.max(world.police.heat, heatForWanted(stage.wanted));
+  if (stage.timer) missions.timer = stage.timer;
+  if (stage.survive) missions.survive = stage.survive;
+}
+
 export function startMission(missions, world, random) {
   const def = currentMission(missions);
   if (!def) return;
@@ -42,115 +103,31 @@ export function startMission(missions, world, random) {
   missions.collected = 0;
   missions.bags = [];
   missions.enemies = [];
-  const stage = def.stages[0];
-  if (stage && stage.kind === 'collect') {
-    for (let i = 0; i < stage.count; i += 1) {
-      missions.bags.push({
-        x: stage.x + random.range(-160, 160),
-        y: stage.y + random.range(-120, 120),
-        taken: false,
-      });
-    }
-    // Gang guards at the Harbor.
-    for (let i = 0; i < 4; i += 1) {
-      missions.enemies.push({
-        x: stage.x + random.range(-220, 220),
-        y: stage.y + random.range(-180, 180),
-        angle: 0, speed: 70, shirt: '#3a3f46', skin: '#c98a5a',
-        gang: true, health: 60, flee: 0, targetX: stage.x, targetY: stage.y,
-        retarget: 3, shootTimer: random.range(0.5, 2), dead: false,
-      });
-    }
-  }
-  if (stage && stage.wanted) world.police.heat = Math.max(world.police.heat, stage.wanted === 3 ? 120 : 200);
-  if (stage && stage.timer) missions.timer = stage.timer;
-  if (stage && stage.survive) missions.survive = stage.survive;
+  armStage(missions, world, def.stages[0], random);
   say(missions, `${def.title}: ${def.brief}`);
 }
 
-export function say(missions, text, seconds = 6) {
-  missions.message = text;
-  missions.messageTimer = seconds;
-}
-
-/** Advance the active stage; returns 'done' | 'failed' | null. */
-export function stepMissions(missions, world, dt, random) {
-  if (missions.messageTimer > 0) missions.messageTimer -= dt;
-  if (!missions.active) return null;
-  const def = currentMission(missions);
-  if (!def) { missions.active = false; return null; }
-  const stage = def.stages[missions.stage];
-  if (!stage) return null;
-  const player = world.player;
-
-  if (stage.kind === 'steal') {
-    if (player.inCar) return advance(missions, world, def);
-  } else if (stage.kind === 'goto') {
-    if (stage.timer) {
-      missions.timer -= dt;
-      if (missions.timer <= 0) return failMission(missions, world, 'Too slow — the job fell through.');
-    }
-    if (stage.wanted && world.police.stars < stage.wanted) {
-      // The chase stage needs the heat kept up until arrival.
-    }
-    if (!missions.arrived && distance(player.x, player.y, stage.x, stage.y) < 70) {
-      missions.arrived = true;
-      if (stage.survive) say(missions, `Hold the gate — survive ${stage.survive}s of chase!`, 4);
-    }
-    if (missions.arrived) {
-      if (stage.survive) {
-        // Survive the chase timer once arrived, wherever the player drives.
-        missions.survive -= dt;
-        if (missions.survive <= 0) return advance(missions, world, def);
-        return null;
-      }
-      return advance(missions, world, def);
-    }
-  } else if (stage.kind === 'collect') {
-    for (const bag of missions.bags) {
-      if (!bag.taken && distance(player.x, player.y, bag.x, bag.y) < 44) {
-        bag.taken = true;
-        missions.collected += 1;
-        world.cash += 150;
-        if (world.audio) world.audio.cash();
-        say(missions, `Cash bag ${missions.collected}/${stage.count} — keep moving!`, 3);
-      }
-    }
-    if (missions.collected >= stage.count) return advance(missions, world, def);
-  }
-  return null;
-}
-
+/** Move to the next stage, or finish the mission and pay out. */
 function advance(missions, world, def) {
   missions.stage += 1;
   missions.arrived = false;
-  if (missions.stage >= def.stages.length) {
-    // Mission complete: pay, unlock the next one.
-    world.cash += def.reward;
-    missions.completedCount += 1;
-    missions.index += 1;
-    missions.active = false;
-    if (world.audio) world.audio.mission();
-    say(missions, `MISSION COMPLETE — ${def.title}. ${def.outro}`, 8);
-    return 'done';
-  }
-  const next = def.stages[missions.stage];
-  if (next) {
-    if (next.kind === 'collect') {
-      missions.bags = [];
-      for (let i = 0; i < next.count; i += 1) {
-        missions.bags.push({ x: next.x + (i - 2) * 90, y: next.y + ((i % 2) ? 80 : -80), taken: false });
-      }
-    }
-    if (next.wanted) world.police.heat = Math.max(world.police.heat, next.wanted === 3 ? 120 : 200);
-    if (next.timer) missions.timer = next.timer;
-    if (next.survive) missions.survive = next.survive;
+  if (missions.stage < def.stages.length) {
+    const next = def.stages[missions.stage];
+    armStage(missions, world, next, world.random);
     say(missions, next.text, 6);
+    return null;
   }
-  return null;
+  // Mission complete: pay, unlock the next one.
+  world.cash += def.reward;
+  missions.completedCount += 1;
+  missions.index += 1;
+  missions.active = false;
+  if (world.audio) world.audio.mission();
+  say(missions, `MISSION COMPLETE — ${def.title}. ${def.outro}`, 8);
+  return 'done';
 }
 
-function failMission(missions, world, reason) {
+function failMission(missions, reason) {
   missions.active = false;
   // A failed job leaves nothing behind: clear its bags and its gang.
   missions.bags = [];
@@ -159,7 +136,63 @@ function failMission(missions, world, reason) {
   return 'failed';
 }
 
-/** Start the next mission (the player walks to Otto's marker or presses Q in free roam). */
+function stepStealStage(missions, world, def) {
+  if (world.player.inCar) return advance(missions, world, def);
+  return null;
+}
+
+function stepGotoStage(missions, world, def, stage, dt) {
+  if (stage.timer) {
+    missions.timer -= dt;
+    if (missions.timer <= 0) return failMission(missions, 'Too slow — the job fell through.');
+  }
+  const player = world.player;
+  if (!missions.arrived && distance(player.x, player.y, stage.x, stage.y) < ARRIVE_DIST) {
+    missions.arrived = true;
+    if (stage.survive) say(missions, `Hold the gate — survive ${stage.survive}s of chase!`, 4);
+  }
+  if (!missions.arrived) return null;
+  if (stage.survive) {
+    // Survive the chase timer once arrived, wherever the player drives.
+    missions.survive -= dt;
+    if (missions.survive <= 0) return advance(missions, world, def);
+    return null;
+  }
+  return advance(missions, world, def);
+}
+
+function stepCollectStage(missions, world, def, stage) {
+  for (const bag of missions.bags) {
+    if (bag.taken) continue;
+    if (distance(world.player.x, world.player.y, bag.x, bag.y) >= BAG_DIST) continue;
+    bag.taken = true;
+    missions.collected += 1;
+    world.cash += BAG_CASH;
+    if (world.audio) world.audio.cash();
+    say(missions, `Cash bag ${missions.collected}/${stage.count} — keep moving!`, 3);
+  }
+  if (missions.collected >= stage.count) return advance(missions, world, def);
+  return null;
+}
+
+/** Advance the active stage; returns 'done' | 'failed' | null. */
+export function stepMissions(missions, world, dt, random) {
+  if (missions.messageTimer > 0) missions.messageTimer -= dt;
+  if (!missions.active) return null;
+  const def = currentMission(missions);
+  if (!def) {
+    missions.active = false;
+    return null;
+  }
+  const stage = def.stages[missions.stage];
+  if (!stage) return null;
+  if (stage.kind === 'steal') return stepStealStage(missions, world, def);
+  if (stage.kind === 'goto') return stepGotoStage(missions, world, def, stage, dt);
+  if (stage.kind === 'collect') return stepCollectStage(missions, world, def, stage);
+  return null;
+}
+
+/** Start the next mission (walk to Otto's marker, or press Q in free roam). */
 export function tryStartMission(missions, world, random) {
   if (missions.active) return false;
   if (!currentMission(missions)) return false;
@@ -167,7 +200,7 @@ export function tryStartMission(missions, world, random) {
   return true;
 }
 
-/** A repeatable side delivery: a parcel marker appears somewhere else in the city. */
+/** A repeatable side delivery: a parcel marker appears elsewhere in the city. */
 export function startSideJob(missions, world, random) {
   if (missions.active || missions.sideJob) return false;
   const x = 300 + random.range(0, 3000);
@@ -186,7 +219,7 @@ export function stepSideJob(missions, world, dt) {
     say(missions, 'Side job expired — the parcel went to someone else.', 5);
     return;
   }
-  if (distance(world.player.x, world.player.y, job.x, job.y) < 70) {
+  if (distance(world.player.x, world.player.y, job.x, job.y) < ARRIVE_DIST) {
     world.cash += SIDE_JOB.reward;
     missions.sideJob = null;
     if (world.audio) world.audio.cash();

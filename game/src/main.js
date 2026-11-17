@@ -17,6 +17,7 @@ import { currentMission } from './missions.js';
 import { nearestCar } from './vehicles.js';
 
 const MAX_FRAME = 0.25;
+const BAIL = 200;
 
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
@@ -33,6 +34,7 @@ function announce(message) {
   status.textContent = message;
 }
 
+/** Screenshot mode: stage the scene, paint it twice, flag readiness. */
 function runShot(name) {
   const scene = stageShot(name, world);
   // Debug handle for the screenshot harness (read-only inspection).
@@ -58,7 +60,6 @@ function runGame() {
   let screen = SCREEN_TITLE;
   let accumulator = 0;
   let last = performance.now();
-  let savedFlash = 0;
   // One-shot presses handleActions reads but step() must act on: queued here.
   let pendingEnter = false;
   let pendingPunch = false;
@@ -69,10 +70,8 @@ function runGame() {
     announce('Solara Bay. Mara Voss is back. Steal a car — press E near one.');
   }
 
-  function continueGame() {
-    const data = loadGame();
-    if (!data) { startNewGame(); return; }
-    world.reset();
+  /** Apply a loaded save onto a fresh world, then start playing. */
+  function applySave(data) {
     const s = world.state;
     s.cash = data.cash;
     s.missions.index = Math.min(data.missionIndex, 5);
@@ -84,54 +83,66 @@ function runGame() {
     s.player.angle = data.angle;
     s.camera.x = data.x;
     s.camera.y = data.y;
+  }
+
+  function continueGame() {
+    const data = loadGame();
+    if (!data) {
+      startNewGame();
+      return;
+    }
+    world.reset();
+    applySave(data);
     screen = SCREEN_PLAY;
-    announce(`Welcome back to Solara Bay. Cash $${s.cash}.`);
+    announce(`Welcome back to Solara Bay. Cash $${world.state.cash}.`);
   }
 
   function doSave() {
     const ok = saveGame(world);
-    savedFlash = 2;
     announce(ok ? 'Game saved.' : 'Save failed — storage is off.');
   }
 
+  /** The player was arrested: bail, cool the heat, hand Mara back her health. */
   function endBusted() {
+    const s = world.state;
     screen = SCREEN_BUSTED;
-    world.state.cash = Math.max(0, world.state.cash - 200);
-    world.state.police.heat = 0;
-    world.state.police.stars = 0;
-    world.state.police.cars.length = 0;
-    world.state.police.cops.length = 0;
-    if (world.state.player.inCar) {
-      world.state.player.car.isPlayer = false;
-      world.state.player.inCar = false;
-      world.state.player.car = null;
+    s.cash = Math.max(0, s.cash - BAIL);
+    s.police.heat = 0;
+    s.police.stars = 0;
+    s.police.cars.length = 0;
+    s.police.cops.length = 0;
+    if (s.player.inCar) {
+      s.player.car.isPlayer = false;
+      s.player.inCar = false;
+      s.player.car = null;
     }
-    world.state.player.health = 100;
+    s.player.health = 100;
     audio.busted();
     announce('Busted. $200 bail. The heat cools off.');
   }
 
+  /** The player went down: the hospital patches Mara up at Otto's garage. */
   function endWasted() {
+    const s = world.state;
     screen = SCREEN_WASTED;
-    world.state.player.health = 100;
-    world.state.player.x = 640;
-    world.state.player.y = 640;
-    if (world.state.player.car) world.state.player.car.isPlayer = false;
-    world.state.player.inCar = false;
-    world.state.player.car = null;
-    world.state.police.heat = 0;
-    world.state.police.stars = 0;
+    s.player.health = 100;
+    s.player.x = 640;
+    s.player.y = 640;
+    if (s.player.car) s.player.car.isPlayer = false;
+    s.player.inCar = false;
+    s.player.car = null;
+    s.police.heat = 0;
+    s.police.stars = 0;
     announce('Wasted. The hospital patches Mara up.');
   }
 
+  /** One frame's one-shot presses, routed by the screen they land on. */
   function handleActions() {
     const { flags, clicked } = input.takeActions();
-    // Stash the world actions for this frame's step() calls.
     if (flags & ACTION_ENTER) pendingEnter = true;
     if (flags & ACTION_PUNCH) pendingPunch = true;
     if (flags & ACTION_MUTE) {
-      const muted = audio.toggleMute();
-      announce(muted ? 'Sound off.' : 'Sound on.');
+      announce(audio.toggleMute() ? 'Sound off.' : 'Sound on.');
     }
     if (flags & ACTION_HORN && screen === SCREEN_PLAY && world.state.player.inCar) {
       audio.horn();
@@ -170,6 +181,7 @@ function runGame() {
     }
   }
 
+  /** Build this step's control block from the keyboard and the mouse. */
   function controlFromInput() {
     const p = world.state.player;
     const cam = world.state.camera;
@@ -196,30 +208,30 @@ function runGame() {
     };
   }
 
+  /** One fixed step, plus the screen changes its events cause. */
   function step() {
     const ctl = controlFromInput();
-    // Take the stashed one-shot actions once per step, then clear them.
     ctl.enter = pendingEnter;
     ctl.punch = pendingPunch;
     pendingEnter = false;
     pendingPunch = false;
     if (screen === SCREEN_TITLE) {
       // The city lives behind the title screen.
-      world.step(STEP, { ...ctl, enter: false, punch: false, shoot: false, click: false, moveX: 0, moveY: 0, throttle: 0, steer: 0 });
+      const idle = { ...ctl, enter: false, punch: false, shoot: false, click: false, moveX: 0, moveY: 0, throttle: 0, steer: 0 };
+      world.step(STEP, idle);
       return;
     }
     // "Press E" hint: the nearest stealable car, for the renderer.
-    world.state.nearCar = world.state.player.inCar ? null : nearestCar(world.state.cars, world.state.player.x, world.state.player.y);
+    world.state.nearCar = world.state.player.inCar
+      ? null
+      : nearestCar(world.state.cars, world.state.player.x, world.state.player.y);
     const events = world.step(STEP, ctl);
     if (events & EVENT_BUSTED) endBusted();
     else if (events & EVENT_WASTED) endWasted();
-    else if (events & EVENT_MISSION_DONE) {
-      if (!currentMission(world.state.missions)) {
-        screen = SCREEN_DONE;
-        announce('Story complete — Solara Bay is yours.');
-      }
+    else if (events & EVENT_MISSION_DONE && !currentMission(world.state.missions)) {
+      screen = SCREEN_DONE;
+      announce('Story complete — Solara Bay is yours.');
     }
-    if (savedFlash > 0) savedFlash -= STEP;
   }
 
   function frame(now) {
@@ -236,9 +248,6 @@ function runGame() {
       accumulator = 0;
     }
     renderer.draw(world.state, screen, { hasSave: hasSave(), saveSummary: saveSummary() });
-    if (savedFlash > 0) {
-      // The save flash is drawn by the HUD; this keeps the flag alive one frame.
-    }
   }
 
   document.addEventListener('visibilitychange', () => {
