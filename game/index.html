@@ -3,19 +3,117 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Azura Bay — Open World Crime</title>
+<title>Solara Bay — Open-World Crime Game</title>
 <link rel="icon" href="data:,">
 <style>
-  html, body { margin: 0; padding: 0; background: #0b1020; height: 100%; overflow: hidden; }
-  #wrap { position: fixed; inset: 0; }
-  canvas { display: block; width: 100vw; height: 100vh; image-rendering: auto; cursor: crosshair; }
-  #status { position: fixed; right: 200px; bottom: 6px; color: #9fb3d1; font: 12px monospace;
-    opacity: .55; pointer-events: none; z-index: 5; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #101018; color: #f0f0f0; font-family: "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  #wrap { position: relative; width: 1280px; height: 720px; margin: 0 auto; }
+  canvas#game { display: block; width: 1280px; height: 720px; background: #ffe9b8; }
+  .hidden { display: none !important; }
+
+  /* HUD */
+  #hud { position: absolute; inset: 0; pointer-events: none; }
+  .panel { background: rgba(12, 12, 20, 0.72); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 8px 12px; }
+  #hud-top { position: absolute; top: 12px; left: 12px; display: flex; gap: 10px; align-items: stretch; }
+  #health-box { min-width: 190px; }
+  #health-box .label, #money { font-size: 13px; letter-spacing: 1px; color: #cfd0da; }
+  #health-bar { height: 12px; background: #333; border-radius: 6px; margin-top: 4px; overflow: hidden; }
+  #health-fill { height: 100%; width: 100%; background: #3aa86a; transition: width 0.2s; }
+  #money { font-size: 22px; font-weight: 800; color: #ffd832; }
+  #stars { font-size: 22px; letter-spacing: 3px; color: #ffd832; }
+  #stars.hot { color: #ff5a4a; animation: blink 0.7s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.45; } }
+  #objective { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: 520px; font-size: 15px; font-weight: 600; text-align: center; }
+  #objective small { display: block; font-size: 11px; color: #ffd832; letter-spacing: 2px; }
+  #hud-right { position: absolute; top: 12px; right: 12px; text-align: right; font-size: 14px; }
+  #hud-right div { margin-bottom: 4px; }
+  #speed { font-size: 20px; font-weight: 800; color: #8fd8ff; }
+  #mute-btn { pointer-events: auto; cursor: pointer; background: rgba(12,12,20,0.72); color: #f0f0f0; border: 1px solid rgba(255,255,255,0.25); border-radius: 8px; padding: 4px 10px; font-size: 13px; }
+  #minimap-wrap { position: absolute; right: 12px; bottom: 12px; }
+  #minimap { width: 220px; height: 165px; border: 2px solid rgba(255,255,255,0.5); border-radius: 8px; background: #101018; }
+  #minimap-wrap .cap { font-size: 11px; letter-spacing: 2px; color: #cfd0da; text-align: center; margin-top: 2px; }
+  #district { position: absolute; left: 12px; bottom: 12px; font-size: 15px; font-weight: 700; letter-spacing: 1px; text-shadow: 0 1px 4px #000; }
+  #dialogue { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: 760px; padding: 10px 18px; font-size: 16px; font-style: italic; text-align: center; opacity: 0; transition: opacity 0.3s; }
+  #dialogue.show { opacity: 1; }
+  #toast { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); padding: 6px 14px; font-size: 14px; font-weight: 600; color: #ffd832; opacity: 0; transition: opacity 0.3s; }
+  #toast.show { opacity: 1; }
+
+  /* Full-screen overlays */
+  .overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; background: rgba(8, 8, 16, 0.62); z-index: 5; }
+  .overlay h1 { font-size: 64px; letter-spacing: 6px; color: #ffd832; text-shadow: 0 4px 0 #c25e2e, 0 8px 24px #000; }
+  .overlay h2 { font-size: 20px; color: #8fd8ff; letter-spacing: 3px; margin-top: 4px; }
+  .overlay p { max-width: 640px; font-size: 16px; line-height: 1.55; margin: 18px 0; color: #e8e8ee; }
+  .controls { font-size: 14px; line-height: 1.8; color: #cfd0da; background: rgba(0,0,0,0.4); border-radius: 10px; padding: 10px 20px; margin-bottom: 20px; }
+  .controls b { color: #ffd832; }
+  .btn { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #181818; background: #ffd832; border: none; border-radius: 10px; padding: 12px 30px; margin: 4px; }
+  .btn:hover { background: #ffe45e; }
+  .btn.secondary { background: #8fd8ff; }
+  .btn.ghost { background: transparent; color: #f0f0f0; border: 2px solid #f0f0f0; }
+  #gameover-stats { font-size: 16px; color: #ffd832; margin: 10px 0 18px; }
+  .tiny { font-size: 12px; color: #9a9aa8; margin-top: 14px; }
 </style>
 </head>
 <body>
-<div id="wrap"><canvas id="game" width="1280" height="720"></canvas></div>
-<div id="status">Azura Bay</div>
-<script type="module" src="src/boot.js"></script>
+<div id="wrap">
+  <canvas id="game" width="1280" height="720"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="hud-top">
+      <div class="panel" id="health-box">
+        <div class="label">REY MARLOW · <span id="health-text">100 HP</span></div>
+        <div id="health-bar"><div id="health-fill"></div></div>
+      </div>
+      <div class="panel"><div id="money">$200</div><div class="label">CASH</div></div>
+      <div class="panel"><div id="stars">☆☆☆☆☆</div><div class="label">WANTED</div></div>
+    </div>
+    <div class="panel" id="objective"><small>SOLARA BAY · CURRENT JOB</small><span id="objective-text">No job active — press N to take the next job.</span></div>
+    <div id="hud-right">
+      <div class="panel"><span id="speed">ON FOOT</span> · <span id="ammo">Ammo 24</span></div>
+      <button id="mute-btn" type="button">🔊 Sound On</button>
+    </div>
+    <div id="minimap-wrap"><canvas id="minimap" width="220" height="165"></canvas><div class="cap">SOLARA BAY MAP</div></div>
+    <div id="district">Harborlight</div>
+    <div class="panel" id="dialogue"></div>
+    <div class="panel" id="toast"></div>
+  </div>
+
+  <div id="title-screen" class="overlay">
+    <h1>SOLARA BAY</h1>
+    <h2>AN OPEN-WORLD CRIME STORY</h2>
+    <p>Rey Marlow owes money to the wrong people in a sun-soaked coastal city of six
+    districts. Steal cars, outrun the law, take five jobs, and drive your way out of
+    debt — from Palm Court towers to the Coral Row beach.</p>
+    <div class="controls">
+      <b>WASD / Arrows</b> move &amp; drive &nbsp;·&nbsp; <b>E</b> enter / exit car &nbsp;·&nbsp; <b>Space</b> punch &nbsp;·&nbsp; <b>K</b> or click shoot<br>
+      <b>N</b> take next job &nbsp;·&nbsp; <b>Shift</b> sprint &nbsp;·&nbsp; <b>Esc / P</b> pause &nbsp;·&nbsp; <b>M</b> mute
+    </div>
+    <div>
+      <button id="start-btn" class="btn" type="button">▶ Start Game</button>
+      <button id="load-btn" class="btn secondary" type="button">Continue Saved Game</button>
+    </div>
+    <div class="tiny">Progress saves automatically. Wanted stars fade when you hide from the police.</div>
+  </div>
+
+  <div id="pause-screen" class="overlay hidden">
+    <h1>PAUSED</h1>
+    <p>Solara Bay waits for no one. Your progress has been saved.</p>
+    <div>
+      <button id="resume-btn" class="btn" type="button">Resume</button>
+      <button id="restart-btn" class="btn ghost" type="button">Restart</button>
+    </div>
+  </div>
+
+  <div id="gameover-screen" class="overlay hidden">
+    <h1>BUSTED</h1>
+    <h2>REY MARLOW IS DOWN</h2>
+    <div id="gameover-stats"></div>
+    <div>
+      <button id="again-btn" class="btn" type="button">↻ Play Again</button>
+    </div>
+    <div class="tiny">Your money and completed jobs were saved — continue from the title screen.</div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
 </body>
 </html>

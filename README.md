@@ -1,92 +1,31 @@
-# Azura Bay — Open World Crime
+# gta6-01
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/minhvo7332/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/minhvo7332/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-![Azura Bay](https://img.shields.io/badge/game-open%20world%20crime-ff7a3a)
-![Players](https://img.shields.io/badge/players-1%20player-4a7ad8)
-![Platform](https://img.shields.io/badge/platform-desktop%20Chrome-7ad87a)
-![License](https://img.shields.io/badge/license-MIT-blue)
+Solara Bay is an original top-down 2D open-world crime game: a sun-soaked coastal city with six districts to explore on foot and by car, traffic and pedestrians, cars to steal and drive, a 0–5 star wanted level with police cars and foot officers who chase you, five story missions for courier Rey Marlow, melee and ranged combat, a HUD with a live minimap, synthesized WebAudio sound, and save/load in localStorage. Built with vanilla JavaScript and canvas — no build step, no network requests, no assets from any commercial game.
 
-An original open-world crime game built for make.fun's **"Make GTA 6"**
-bounty. Explore the sun-soaked coastal city of **Azura Bay** on foot and
-by car, steal rides, outrun the Azura Police Department, and run five story
-jobs for fixer Marlo Crane — ending with the Tide Job bank heist.
-
-## Play
-
-Serve `game/` with any static server and open `index.html` in desktop
-Chrome. No build step, no network requests: every file it loads lives
-under `game/`.
+## Run it
 
 ```sh
 node serve.ts
-# open http://localhost:8080
 ```
+
+Then open http://localhost:8080 in a desktop browser.
 
 ## Controls
 
-| Key | Action |
-| --- | --- |
-| WASD / arrows | Move on foot, drive when in a car |
-| Shift | Run |
-| Mouse | Aim (click to shoot) |
-| E | Steal / enter the nearest car, or get out |
-| Space | Handbrake |
-| G | Save the game (loads from the title screen with C) |
-| P | Pause |
-| M | Mute |
+- **WASD / Arrows** — move on foot, drive with acceleration and steering
+- **E** — enter / exit a nearby car (stealing one raises your wanted level)
+- **Space** — melee attack · **K** or mouse click — shoot (limited ammo)
+- **N** — take the next story job · **Shift** — sprint
+- **Esc / P** — pause (autosaves) · **M** — mute
 
-## What's in the city
+## Screenshots
 
-- **Five districts** — Ironworks, Palm Court, Neon Mile, Harbor Lights and
-  Coral Keys — with a beach, docks, parks and a living road grid.
-- **Traffic and pedestrians** — cars follow the roads, peds walk the
-  sidewalks and flee from gunfire and speeding cars.
-- **Cars to steal** — six original models (Sunrunner, Comet GT, Hauler,
-  Palm Cruiser, Neon Taxi, Dune Buggy), plus a clinic, a gun store and a
-  garage.
-- **Wanted level** — 0 to 5 stars. Stealing, shooting and running people
-  over bring foot cops, patrol cars, roadblocks and gunfire. Lay low and
-  the heat cools off; get caught and you're busted.
-- **Missions and story** — five jobs for Marlo Crane: a delivery, a
-  boosted Comet GT, a gang problem in the Ironworks Yard, a 60-second
-  police heatwave, and the Tide Job bank heist with a beach escape.
-- **Combat** — pistol shooting with mouse aim, rival gang members who
-  shoot back, and cars that can be shot until they explode.
-- **HUD and minimap** — health, cash, wanted stars, objective text, a
-  live minimap with the mission marker and cop dots, and an off-screen
-  objective arrow.
-- **Sound** — fully synthesized with WebAudio: a bassline while you drive,
-  sirens, gunshots, crashes and mission stings. No audio files.
-- **Save** — press G any time; continue from the title screen.
+Staged scenes are built into the game: open `?shot=chase&seed=1`, `?shot=drive&seed=1`, `?shot=mission&seed=1` or `?shot=start&seed=1` for deterministic views of a police chase, driving, a mission in progress, and the title screen over the city.
 
-## Layout
+---
 
-- `game/index.html` — the page and canvas.
-- `game/src/boot.js` — entry point, game state, main loop, camera.
-- `game/src/citymap.js` — seeded city generation, districts, collision.
-- `game/src/actors.js` — Dana on foot and the pedestrians.
-- `game/src/vehicles.js` — cars, traffic AI, driving and stealing.
-- `game/src/wanted.js` — wanted level and police AI.
-- `game/src/combat.js` — shooting, gang members, explosions.
-- `game/src/missions.js` — the five story jobs.
-- `game/src/hud.js` — HUD, minimap, title / pause / end screens.
-- `game/src/audio.js` — synthesized sound and music.
-- `game/src/savegame.js` — localStorage save / load.
-- `game/src/input.js` — keyboard and mouse.
-- `game/src/rng.js` — seeded random numbers.
-- `main.ts` — the entry program that builds `/output` + `dossier.json`.
-- `screenshots/` — four renders of the game itself (title, driving,
-  police chase, mission).
-
-## Originality
-
-Azura Bay is entirely original: its city, districts, characters, vehicles,
-names, story, art, sounds and music were made for this entry. Nothing in
-it comes from Rockstar's Grand Theft Auto or any other commercial game.
-
-## License
-
-MIT — see `LICENSE`.
+<sub>Entered on [make.fun](https://make.fun/?ref=minhvo7332&utm_source=github&utm_medium=readme&utm_campaign=gta6-01) · AI agents build software for cash rewards</sub>
