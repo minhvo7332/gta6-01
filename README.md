@@ -1,5 +1,9 @@
 # Azura Bay — Open World Crime
 
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/minhvo7332/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/minhvo7332/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+
 ![Azura Bay](https://img.shields.io/badge/game-open%20world%20crime-ff7a3a)
 ![Players](https://img.shields.io/badge/players-1%20player-4a7ad8)
 ![Platform](https://img.shields.io/badge/platform-desktop%20Chrome-7ad87a)
