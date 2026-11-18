@@ -1,8 +1,8 @@
 // Boot and the one loop: input is read every frame, the world advances in fixed
-// 1/60 s steps, and the renderer paints what is there. Screens: title, play,
+// 1/60 s steps, and the renderer draws what is there. Screens: title, play,
 // paused, busted, wasted, story-complete.
 // ?seed=N fixes the city. ?shot=title|drive|chase|mission (with &seed=N) stages
-// that scene instead of running the loop, paints it twice and sets
+// that scene instead of running the loop, draws it twice and sets
 // window.__shotReady for a screenshot.
 
 import { STEP } from './config.js';
@@ -34,7 +34,7 @@ function announce(message) {
   status.textContent = message;
 }
 
-/** Screenshot mode: stage the scene, paint it twice, flag readiness. */
+/** Screenshot mode: stage the scene, draw it twice, flag readiness. */
 function runShot(name) {
   const scene = stageShot(name, world);
   // Debug handle for the screenshot harness (read-only inspection).
@@ -45,7 +45,7 @@ function runShot(name) {
     painted += 1;
     if (painted >= 2) window.__shotReady = true;
   }
-  // Paint at once (a screenshot tool may capture before the first animation
+  // Draw at once (a screenshot tool may capture before the first animation
   // frame), again on the next frame, and again after any resize — resizing a
   // canvas wipes it, so a shot must survive a viewport change.
   paint();
@@ -60,7 +60,7 @@ function runGame() {
   let screen = SCREEN_TITLE;
   let accumulator = 0;
   let last = performance.now();
-  // One-shot presses handleActions reads but step() must act on: queued here.
+  // One-shot presses routeActions reads but step() must act on: queued here.
   let pendingEnter = false;
   let pendingPunch = false;
 
@@ -71,7 +71,7 @@ function runGame() {
   }
 
   /** Apply a loaded save onto a fresh world, then start playing. */
-  function applySave(data) {
+  function restoreSave(data) {
     const s = world.state;
     s.cash = data.cash;
     s.missions.index = Math.min(data.missionIndex, 5);
@@ -92,18 +92,19 @@ function runGame() {
       return;
     }
     world.reset();
-    applySave(data);
+    restoreSave(data);
     screen = SCREEN_PLAY;
     announce(`Welcome back to Solara Bay. Cash $${world.state.cash}.`);
   }
 
   function doSave() {
-    const ok = saveGame(world);
+    // saveGame reads the live state object, not the world wrapper.
+    const ok = saveGame(world.state);
     announce(ok ? 'Game saved.' : 'Save failed — storage is off.');
   }
 
   /** The player was arrested: bail, cool the heat, hand Mara back her health. */
-  function endBusted() {
+  function showBusted() {
     const s = world.state;
     screen = SCREEN_BUSTED;
     s.cash = Math.max(0, s.cash - BAIL);
@@ -122,7 +123,7 @@ function runGame() {
   }
 
   /** The player went down: the hospital patches Mara up at Otto's garage. */
-  function endWasted() {
+  function showWasted() {
     const s = world.state;
     screen = SCREEN_WASTED;
     s.player.health = 100;
@@ -137,7 +138,7 @@ function runGame() {
   }
 
   /** One frame's one-shot presses, routed by the screen they land on. */
-  function handleActions() {
+  function routeActions() {
     const { flags, clicked } = input.takeActions();
     if (flags & ACTION_ENTER) pendingEnter = true;
     if (flags & ACTION_PUNCH) pendingPunch = true;
@@ -182,8 +183,7 @@ function runGame() {
   }
 
   /** Build this step's control block from the keyboard and the mouse. */
-  function controlFromInput() {
-    const p = world.state.player;
+  function buildControl() {
     const cam = world.state.camera;
     // Mouse position in world coordinates, for aiming the pistol: the renderer
     // scales the 1280x720 logical view to the canvas, so undo that transform.
@@ -210,7 +210,7 @@ function runGame() {
 
   /** One fixed step, plus the screen changes its events cause. */
   function step() {
-    const ctl = controlFromInput();
+    const ctl = buildControl();
     ctl.enter = pendingEnter;
     ctl.punch = pendingPunch;
     pendingEnter = false;
@@ -226,8 +226,8 @@ function runGame() {
       ? null
       : nearestCar(world.state.cars, world.state.player.x, world.state.player.y);
     const events = world.step(STEP, ctl);
-    if (events & EVENT_BUSTED) endBusted();
-    else if (events & EVENT_WASTED) endWasted();
+    if (events & EVENT_BUSTED) showBusted();
+    else if (events & EVENT_WASTED) showWasted();
     else if (events & EVENT_MISSION_DONE && !currentMission(world.state.missions)) {
       screen = SCREEN_DONE;
       announce('Story complete — Solara Bay is yours.');
@@ -238,7 +238,7 @@ function runGame() {
     requestAnimationFrame(frame);
     accumulator += Math.min((now - last) / 1000, MAX_FRAME);
     last = now;
-    handleActions();
+    routeActions();
     if (screen === SCREEN_TITLE || screen === SCREEN_PLAY) {
       while (accumulator >= STEP && (screen === SCREEN_TITLE || screen === SCREEN_PLAY)) {
         step();

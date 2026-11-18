@@ -3,9 +3,9 @@
 // blips cover gunshots, punches, crashes, sirens and mission jingles.
 // The AudioContext is created lazily on the first user gesture.
 
-const BASS_LINE = [55, 55, 65.41, 49, 55, 65.41, 73.42, 65.41]; // A1 A1 C2 G1 ...
-const MISSION_ARP = [523, 659, 784, 1046];
-const BUSTED_ARP = [392, 330, 262, 196];
+const BASS_NOTES = [55, 55, 65.41, 49, 55, 65.41, 73.42, 65.41]; // A1 A1 C2 G1 ...
+const MISSION_NOTES = [523, 659, 784, 1046];
+const BUSTED_NOTES = [392, 330, 262, 196];
 
 export function createAudio() {
   let actx = null;
@@ -44,7 +44,7 @@ export function createAudio() {
   }
 
   /** Filtered noise burst: the thud behind punches, shots and crashes. */
-  function thud(dur, vol, cutoff) {
+  function noiseThud(dur, vol, cutoff) {
     if (muted) return;
     const ctx = audioCtx();
     if (!ctx) return;
@@ -65,8 +65,8 @@ export function createAudio() {
     src.start(ctx.currentTime);
   }
 
-  /** A short melody: each [freq, delay] pair is one blip. */
-  function tune(notes, wave, vol, noteDur, gap) {
+  /** A short melody: each note is one blip, spaced by `gap`. */
+  function playTune(notes, wave, vol, noteDur, gap) {
     notes.forEach((freq, i) => blip(freq, noteDur, wave, vol, i * gap));
   }
 
@@ -75,7 +75,7 @@ export function createAudio() {
     if (!audioCtx()) return;
     loopId = window.setInterval(() => {
       if (muted || !actx || actx.state !== 'running') return;
-      const root = BASS_LINE[step % BASS_LINE.length];
+      const root = BASS_NOTES[step % BASS_NOTES.length];
       blip(root, 0.5, 'triangle', 0.1);
       blip(root * 2, 0.22, 'square', 0.03);
       if (step % 4 === 0) blip(root * 4, 0.4, 'sine', 0.05);
@@ -95,15 +95,15 @@ export function createAudio() {
     },
     isMuted() { return muted; },
     click() { blip(660, 0.07, 'square', 0.06); },
-    punch() { thud(0.12, 0.25, 900); blip(120, 0.1, 'sine', 0.2, 0, 60); },
-    shoot() { thud(0.14, 0.4, 3200); blip(900, 0.08, 'square', 0.12, 0, 120); },
-    crash() { thud(0.3, 0.4, 700); blip(90, 0.25, 'sine', 0.25, 0, 40); },
+    punch() { noiseThud(0.12, 0.25, 900); blip(120, 0.1, 'sine', 0.2, 0, 60); },
+    shoot() { noiseThud(0.14, 0.4, 3200); blip(900, 0.08, 'square', 0.12, 0, 120); },
+    crash() { noiseThud(0.3, 0.4, 700); blip(90, 0.25, 'sine', 0.25, 0, 40); },
     pickup() { blip(880, 0.09, 'sine', 0.12); blip(1320, 0.14, 'sine', 0.12, 0.09); },
     cash() { blip(1046, 0.1, 'triangle', 0.14); blip(1318, 0.1, 'triangle', 0.14, 0.08); blip(1568, 0.2, 'triangle', 0.14, 0.16); },
     siren() { blip(700, 0.5, 'sine', 0.05, 0, 950); blip(950, 0.5, 'sine', 0.05, 0.5, 700); },
-    mission() { tune(MISSION_ARP, 'triangle', 0.14, 0.18, 0.11); },
+    mission() { playTune(MISSION_NOTES, 'triangle', 0.14, 0.18, 0.11); },
     horn() { blip(370, 0.18, 'square', 0.08); blip(466, 0.18, 'square', 0.06); },
-    busted() { tune(BUSTED_ARP, 'sawtooth', 0.08, 0.3, 0.22); },
+    busted() { playTune(BUSTED_NOTES, 'sawtooth', 0.08, 0.3, 0.22); },
     engine(speed01) {
       const ctx = audioCtx();
       const level = Math.min(1, Math.max(0, speed01 || 0));

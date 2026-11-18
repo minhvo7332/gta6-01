@@ -4,10 +4,10 @@
 // no network request) and screenshots/ to /output, then writes
 // /output/dossier.json with the vendored make.fun library.
 //
-// The game is an original open-world crime story: a 3600x2600 coastal city,
-// traffic and pedestrians, car theft, a wanted system with police chases,
-// five story missions, combat, a HUD with a minimap, a start screen and a
-// localStorage save. main.ts itself stays plumbing.
+// The game is an original open-world crime story set in a 3600x2600 coastal
+// city: traffic and pedestrians, car theft, a wanted system with police
+// chases, five story missions, combat, a HUD with a minimap, a start screen
+// and a localStorage save. main.ts itself stays plumbing.
 //
 // Serve it locally with `node serve.ts`, then open http://localhost:8080.
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:

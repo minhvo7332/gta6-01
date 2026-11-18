@@ -45,11 +45,11 @@ export function say(missions, text, seconds = 6) {
 }
 
 /** Heat for a stage that demands a wanted level: 3 stars or 4 stars. */
-function heatForWanted(wanted) {
+function heatForStars(wanted) {
   return wanted === 3 ? 120 : 200;
 }
 
-function spawnBags(missions, stage, random) {
+function placeBags(missions, stage, random) {
   missions.bags = [];
   for (let i = 0; i < stage.count; i += 1) {
     missions.bags.push({
@@ -60,7 +60,7 @@ function spawnBags(missions, stage, random) {
   }
 }
 
-function spawnGang(missions, stage, random) {
+function placeGang(missions, stage, random) {
   missions.enemies = [];
   for (let i = 0; i < 4; i += 1) {
     missions.enemies.push({
@@ -83,13 +83,13 @@ function spawnGang(missions, stage, random) {
 }
 
 /** Apply a stage's opening conditions: heat, timer, survive clock, bags, gang. */
-function armStage(missions, world, stage, random) {
+function prepareStage(missions, world, stage, random) {
   if (!stage) return;
   if (stage.kind === 'collect' && stage.count > 0) {
-    spawnBags(missions, stage, random);
-    spawnGang(missions, stage, random);
+    placeBags(missions, stage, random);
+    placeGang(missions, stage, random);
   }
-  if (stage.wanted) world.police.heat = Math.max(world.police.heat, heatForWanted(stage.wanted));
+  if (stage.wanted) world.police.heat = Math.max(world.police.heat, heatForStars(stage.wanted));
   if (stage.timer) missions.timer = stage.timer;
   if (stage.survive) missions.survive = stage.survive;
 }
@@ -103,7 +103,7 @@ export function startMission(missions, world, random) {
   missions.collected = 0;
   missions.bags = [];
   missions.enemies = [];
-  armStage(missions, world, def.stages[0], random);
+  prepareStage(missions, world, def.stages[0], random);
   say(missions, `${def.title}: ${def.brief}`);
 }
 
@@ -113,7 +113,7 @@ function advance(missions, world, def) {
   missions.arrived = false;
   if (missions.stage < def.stages.length) {
     const next = def.stages[missions.stage];
-    armStage(missions, world, next, world.random);
+    prepareStage(missions, world, next, world.random);
     say(missions, next.text, 6);
     return null;
   }
@@ -136,12 +136,12 @@ function failMission(missions, reason) {
   return 'failed';
 }
 
-function stepStealStage(missions, world, def) {
+function checkStealStage(missions, world, def) {
   if (world.player.inCar) return advance(missions, world, def);
   return null;
 }
 
-function stepGotoStage(missions, world, def, stage, dt) {
+function checkGotoStage(missions, world, def, stage, dt) {
   if (stage.timer) {
     missions.timer -= dt;
     if (missions.timer <= 0) return failMission(missions, 'Too slow — the job fell through.');
@@ -161,7 +161,7 @@ function stepGotoStage(missions, world, def, stage, dt) {
   return advance(missions, world, def);
 }
 
-function stepCollectStage(missions, world, def, stage) {
+function checkCollectStage(missions, world, def, stage) {
   for (const bag of missions.bags) {
     if (bag.taken) continue;
     if (distance(world.player.x, world.player.y, bag.x, bag.y) >= BAG_DIST) continue;
@@ -186,9 +186,9 @@ export function stepMissions(missions, world, dt, random) {
   }
   const stage = def.stages[missions.stage];
   if (!stage) return null;
-  if (stage.kind === 'steal') return stepStealStage(missions, world, def);
-  if (stage.kind === 'goto') return stepGotoStage(missions, world, def, stage, dt);
-  if (stage.kind === 'collect') return stepCollectStage(missions, world, def, stage);
+  if (stage.kind === 'steal') return checkStealStage(missions, world, def);
+  if (stage.kind === 'goto') return checkGotoStage(missions, world, def, stage, dt);
+  if (stage.kind === 'collect') return checkCollectStage(missions, world, def, stage);
   return null;
 }
 

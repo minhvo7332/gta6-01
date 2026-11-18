@@ -39,8 +39,6 @@ export function spawnPeds(city, random, count) {
 
 /** Pick a new strolling destination on a road near the pedestrian. */
 function retarget(ped, city, random) {
-  const point = randomRoadPoint(city, random);
-  void point;
   ped.targetX = clamp(ped.x + random.range(-500, 500), 60, WORLD.width - 60);
   ped.targetY = clamp(ped.y + random.range(-500, 500), 60, WORLD.height - 60);
   ped.retarget = random.range(4, 10);

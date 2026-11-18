@@ -1,14 +1,12 @@
-// Solara Bay — tuning, palette, districts and story, all in one module.
-// Original coastal city, 3600 by 2600, seen through a 1280 by 720 camera.
-// Nothing in here comes from any commercial game.
-
+// Solara Bay — tuning, palette, districts and story in one place.
+// An original sun-soaked coastal city, 3600 by 2600 world units, seen
+// through a 1280 by 720 camera. No names, art or music from any commercial game.
 export const STEP = 1 / 60;
 export const WORLD = { width: 3600, height: 2600 };
 export const VIEW = { width: 1280, height: 720 };
 
 export const CITY_NAME = 'SOLARA BAY';
 export const GAME_TITLE = 'SOLARA BAY';
-export const GAME_SUBTITLE = 'an open-world crime story — an original game, no Rockstar content';
 export const SAVE_KEY = 'solara-bay.save.v1';
 export const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 
@@ -20,7 +18,7 @@ export const STORY = {
   intro: 'Mara Voss drove getaway cars for ten years, then walked away. Now she is back in Solara Bay, broke, with one name in her phone: Otto, the fixer who never forgets a debt.',
 };
 
-/** Six districts the minimap labels and the mission text name. */
+/** Six districts the minimap labels and mission text names. */
 export const DISTRICTS = [
   { name: 'Northside', x: 1800, y: 350, color: '#a8e6a1' },
   { name: 'Old Town', x: 700, y: 700, color: '#f2c94c' },
@@ -65,7 +63,6 @@ export const MAX_COPS = 8;
 export const POLICE_RAM_DAMAGE = 8;
 
 export const WANTED = {
-  // Heat thresholds that raise the star level.
   thresholds: [0, 25, 60, 120, 200, 320],
   stealHeat: 30,
   hitPedHeat: 35,
@@ -111,7 +108,7 @@ export const CAR_MODELS = [
   { name: 'Lagoon', color: '#3fa8a0' },
 ];
 
-/** One story job: an id, a title, a brief, a reward, stages and an outro line. */
+/** One story job: id, title, brief, reward, stages, outro line. */
 function job(id, title, brief, reward, stages, outro) {
   return { id, title, brief, reward, stages, outro };
 }

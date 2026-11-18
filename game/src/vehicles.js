@@ -47,8 +47,8 @@ function placeOnRoad(car, point, random, moving) {
   if (moving) car.speed = random.range(90, 170);
 }
 
-/** Spawn the traffic fleet across the city, plus parked cars at the kerb —
- * easy to steal, and they make the streets feel lived-in. */
+/** Spawn the traffic fleet across the city, plus parked cars at the kerb — easy
+ * to steal, and they make the streets feel lived-in. */
 export function spawnTraffic(city, random, count) {
   const cars = [];
   for (let i = 0; i < count; i += 1) {

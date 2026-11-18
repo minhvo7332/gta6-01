@@ -74,7 +74,7 @@ export function createWorld(random, audio) {
   }
 
   /** Steal the nearest car, or step out of the one being driven. */
-  function handleEnterCar(ctl) {
+  function tryEnterCar(ctl) {
     const p = state.player;
     if (!ctl.enter) return 0;
     if (!p.inCar) {
@@ -103,7 +103,7 @@ export function createWorld(random, audio) {
   }
 
   /** Drive the stolen car; returns EVENT_CRASH when it hits a building hard. */
-  function drivePlayerCar(ctl, dt) {
+  function driveCar(ctl, dt) {
     const p = state.player;
     const car = p.car;
     const crashed = stepPlayerCar(car, ctl.steer, ctl.throttle, dt, state.city);
@@ -132,7 +132,7 @@ export function createWorld(random, audio) {
   }
 
   /** Walk, punch and shoot on foot. */
-  function walkPlayer(ctl, dt) {
+  function walkOnFoot(ctl, dt) {
     const p = state.player;
     p.carSpeed = 0;
     const speed = ctl.sprint ? PLAYER.sprintSpeed : PLAYER.walkSpeed;
@@ -159,7 +159,7 @@ export function createWorld(random, audio) {
   }
 
   /** Bump traffic cars, and find the fastest one near the player (peds flee it). */
-  function trafficNearPlayer() {
+  function scanNearbyTraffic() {
     const p = state.player;
     if (p.inCar && p.car) {
       for (const car of state.cars) {
@@ -189,7 +189,7 @@ export function createWorld(random, audio) {
 
   /** Keep the streets alive near the player: respawn far traffic, far peds,
    * and replace dead peds so the city never empties out. */
-  function keepStreetsAlive() {
+  function repopulateStreets() {
     const p = state.player;
     for (const car of state.cars) {
       if (!car.traffic) continue;
@@ -214,7 +214,7 @@ export function createWorld(random, audio) {
     }
   }
 
-  function updateCamera(dt) {
+  function followPlayer(dt) {
     const p = state.player;
     state.district = districtAt(p.x, p.y);
     const targetX = clamp(p.x, 640, WORLD.width - 640);
@@ -231,13 +231,13 @@ export function createWorld(random, audio) {
     state.dayMinutes = (DAY_START_MINUTES + state.elapsed / 60) % (24 * 60);
     if (p.danger > 0) p.danger -= dt;
 
-    events |= handleEnterCar(ctl);
-    if (p.inCar && p.car) events |= drivePlayerCar(ctl, dt);
-    else walkPlayer(ctl, dt);
+    events |= tryEnterCar(ctl);
+    if (p.inCar && p.car) events |= driveCar(ctl, dt);
+    else walkOnFoot(ctl, dt);
 
     // Traffic, pedestrians, police.
     stepTraffic(state.cars, state.city, dt, random);
-    trafficNearPlayer();
+    scanNearbyTraffic();
     stepPeds(state.peds, state.city, p, dt, random);
     // Gang enemies from the active mission also walk and shoot.
     if (state.missions.enemies.length) {
@@ -262,8 +262,8 @@ export function createWorld(random, audio) {
     if (missionResult === 'failed') events |= EVENT_MISSION_FAIL;
     stepSideJob(state.missions, state, dt);
 
-    keepStreetsAlive();
-    updateCamera(dt);
+    repopulateStreets();
+    followPlayer(dt);
 
     if (p.health <= 0) events |= EVENT_WASTED;
     return events;

@@ -54,7 +54,7 @@ function spawnCop(police, city, random, player) {
 }
 
 /** How many police cars and foot cops the current star level calls for. */
-function wantedStrength(stars) {
+function responseFor(stars) {
   if (stars === 0) return { cars: 0, cops: 0 };
   return {
     cars: Math.min(MAX_POLICE_CARS, 1 + stars),
@@ -62,7 +62,7 @@ function wantedStrength(stars) {
   };
 }
 
-function stepPoliceCar(car, player, dt, targetSpeed) {
+function chaseWithCar(car, player, dt, targetSpeed) {
   const wantAngle = Math.atan2(player.y - car.y, player.x - car.x);
   car.angle += clamp(angleDiff(car.angle, wantAngle), -2.4 * dt, 2.4 * dt);
   car.speed = Math.min(targetSpeed, car.speed + 420 * dt);
@@ -73,7 +73,7 @@ function stepPoliceCar(car, player, dt, targetSpeed) {
   return distance(car.x, car.y, player.x, player.y);
 }
 
-function stepCop(cop, player, dt) {
+function chaseOnFoot(cop, player, dt) {
   const d = distance(cop.x, cop.y, player.x, player.y);
   cop.angle = Math.atan2(player.y - cop.y, player.x - cop.x);
   const speed = d < 200 ? 190 : 150;
@@ -83,7 +83,7 @@ function stepCop(cop, player, dt) {
 }
 
 /** Cool the heat after a quiet spell; the stars fall with it. */
-function decayHeat(police, dt) {
+function coolHeat(police, dt) {
   police.quietTimer += dt;
   if (police.quietTimer <= WANTED.decayDelay || police.heat <= 0) return;
   police.heat = Math.max(0, police.heat - WANTED.decayPerSecond * dt);
@@ -91,8 +91,8 @@ function decayHeat(police, dt) {
 }
 
 export function stepPolice(police, city, player, dt, random, audio) {
-  decayHeat(police, dt);
-  const strength = wantedStrength(police.stars);
+  coolHeat(police, dt);
+  const strength = responseFor(police.stars);
 
   // Spawn up to strength, one at a time.
   if (police.cars.length < strength.cars && random.chance(dt * 1.2)) {
@@ -115,7 +115,7 @@ export function stepPolice(police, city, player, dt, random, audio) {
   if (police.ramCooldown > 0) police.ramCooldown -= dt;
 
   for (const car of police.cars) {
-    const d = stepPoliceCar(car, player, dt, targetSpeed);
+    const d = chaseWithCar(car, player, dt, targetSpeed);
     if (d < 46) {
       // A ram hurts at most once a second, and shoves the police car off so
       // it cannot sit on the player and drain health every frame.
@@ -129,7 +129,7 @@ export function stepPolice(police, city, player, dt, random, audio) {
     }
   }
   for (const cop of police.cops) {
-    const d = stepCop(cop, player, dt);
+    const d = chaseOnFoot(cop, player, dt);
     // Arrest: on foot, slow, and a cop reaches you.
     if (!player.inCar && playerSpeed < 40 && d < 26) arrested = true;
   }

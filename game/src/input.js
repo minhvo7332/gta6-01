@@ -35,14 +35,14 @@ const ONE_SHOT = [
   { flag: ACTION_HORN, codes: ['KeyH'] },
 ];
 
-function findHeld(code) {
+function slotForCode(code) {
   for (const entry of HELD) {
     if (entry.codes.includes(code)) return entry.slot;
   }
   return null;
 }
 
-function findOneShot(code) {
+function flagForCode(code) {
   for (const entry of ONE_SHOT) {
     if (entry.codes.includes(code)) return entry.flag;
   }
@@ -71,19 +71,19 @@ export function createInput(canvas) {
   }
 
   window.addEventListener('keydown', (event) => {
-    const flag = findOneShot(event.code);
+    const flag = flagForCode(event.code);
     if (flag !== 0) {
       if (!event.repeat) pending |= flag;
       return;
     }
-    const slot = findHeld(event.code);
+    const slot = slotForCode(event.code);
     if (slot) {
       keys[slot] = true;
       event.preventDefault();
     }
   });
   window.addEventListener('keyup', (event) => {
-    const slot = findHeld(event.code);
+    const slot = slotForCode(event.code);
     if (slot) keys[slot] = false;
   });
   window.addEventListener('blur', clearHeld);

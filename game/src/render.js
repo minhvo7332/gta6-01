@@ -61,7 +61,7 @@ export function createRenderer(canvas) {
     ctx.fill();
   }
 
-  function paintTerrain(state) {
+  function drawTerrain(state) {
     const city = state.city;
     const x0 = cam.x - VIEW.width / 2;
     const y0 = cam.y - VIEW.height / 2;
@@ -128,7 +128,7 @@ export function createRenderer(canvas) {
       rect(b.x + b.w * 0.65, b.y + b.h * 0.6, 12, 12, 'rgba(0,0,0,0.22)');
       if (b.name && b.w > 90) label(b.name, b.x + b.w / 2, b.y + b.h / 2 + 5, 13, 'rgba(255,255,255,0.85)', 'center', 'bold');
     }
-    // District names painted on the ground.
+    // District names drawn on the ground.
     for (const d of DISTRICTS) {
       if (!inView(d.x, d.y, 100)) continue;
       label(d.name.toUpperCase(), d.x, d.y, 22, 'rgba(255,255,255,0.55)', 'center', 'bold');
@@ -147,7 +147,7 @@ export function createRenderer(canvas) {
     if (caption) label(caption, x, y - r - 8, 15, color, 'center', 'bold');
   }
 
-  function paintCar(car, isPlayer) {
+  function drawCar(car, isPlayer) {
     ctx.save();
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
@@ -167,7 +167,7 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
-  function paintPoliceCar(car, flash) {
+  function drawPoliceCar(car, flash) {
     ctx.save();
     ctx.translate(car.x, car.y);
     ctx.rotate(car.angle);
@@ -181,7 +181,7 @@ export function createRenderer(canvas) {
     label('POLICE', car.x, car.y - 26, 11, '#ffffff', 'center', 'bold');
   }
 
-  function paintPerson(p, isPlayer, isCop, isGang) {
+  function drawPerson(p, isPlayer, isCop, isGang) {
     if (p.dead) {
       ctx.save();
       ctx.translate(p.x, p.y);
@@ -210,7 +210,7 @@ export function createRenderer(canvas) {
     ctx.restore();
   }
 
-  function paintMarkers(state) {
+  function drawMarkers(state) {
     for (const pk of state.pickups) {
       if (pk.taken || !inView(pk.x, pk.y, 40)) continue;
       const bob = Math.sin(pk.bob) * 3;
@@ -234,30 +234,30 @@ export function createRenderer(canvas) {
     }
   }
 
-  function paintActors(state) {
+  function drawActors(state) {
     for (const car of state.cars) {
       if (!inView(car.x, car.y, 80)) continue;
       if (state.player.inCar && car === state.player.car) continue;
-      paintCar(car, false);
+      drawCar(car, false);
     }
-    if (state.player.inCar && state.player.car) paintCar(state.player.car, true);
+    if (state.player.inCar && state.player.car) drawCar(state.player.car, true);
     const flash = Math.floor(performance.now() / 300) % 2 === 0;
     for (const car of state.police.cars) {
-      if (inView(car.x, car.y, 80)) paintPoliceCar(car, flash);
+      if (inView(car.x, car.y, 80)) drawPoliceCar(car, flash);
     }
     for (const ped of state.peds) {
-      if (inView(ped.x, ped.y, 40)) paintPerson(ped, false, false, ped.gang);
+      if (inView(ped.x, ped.y, 40)) drawPerson(ped, false, false, ped.gang);
     }
     for (const enemy of state.missions.enemies) {
-      if (inView(enemy.x, enemy.y, 40)) paintPerson(enemy, false, false, true);
+      if (inView(enemy.x, enemy.y, 40)) drawPerson(enemy, false, false, true);
     }
     for (const cop of state.police.cops) {
-      if (inView(cop.x, cop.y, 40)) paintPerson(cop, false, true, false);
+      if (inView(cop.x, cop.y, 40)) drawPerson(cop, false, true, false);
     }
-    if (!state.player.inCar) paintPerson(state.player, true, false, false);
+    if (!state.player.inCar) drawPerson(state.player, true, false, false);
   }
 
-  function paintShots(state) {
+  function drawShots(state) {
     ctx.strokeStyle = '#ffe9a0';
     ctx.lineWidth = 3;
     for (const b of state.combat.bullets) {
@@ -275,21 +275,21 @@ export function createRenderer(canvas) {
     }
   }
 
-  function paintWorld(state) {
+  function drawWorld(state) {
     cam = state.camera;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     rect(0, 0, canvas.width, canvas.height, PALETTE.backdrop);
     ctx.setTransform(view.scale, 0, 0, view.scale, view.x, view.y);
     ctx.save();
     ctx.translate(-(cam.x - VIEW.width / 2), -(cam.y - VIEW.height / 2));
-    paintTerrain(state);
-    paintMarkers(state);
-    paintActors(state);
-    paintShots(state);
+    drawTerrain(state);
+    drawMarkers(state);
+    drawActors(state);
+    drawShots(state);
     ctx.restore();
   }
 
-  function paintMinimap(state) {
+  function drawMinimap(state) {
     const mx = (x) => MINIMAP.x + x * MAP_SX;
     const my = (y) => MINIMAP.y + y * MAP_SY;
     rect(MINIMAP.x, MINIMAP.y, MINIMAP.w, MINIMAP.h, 'rgba(10,16,22,0.85)');
@@ -343,13 +343,13 @@ export function createRenderer(canvas) {
   }
 
   /** Wanted stars, top centre: filled stars for the heat, empty for the rest. */
-  function paintStars(stars) {
+  function drawStars(stars) {
     const row = '★'.repeat(stars) + '☆'.repeat(5 - stars);
     label(row, VIEW.width / 2, 44, 30, stars > 0 ? PALETTE.wanted : 'rgba(255,255,255,0.35)', 'center', 'bold');
     if (stars > 0) label('WANTED', VIEW.width / 2, 66, 13, PALETTE.wanted, 'center', 'bold');
   }
 
-  function paintHud(state) {
+  function drawHud(state) {
     const p = state.player;
     const stage = currentStage(state.missions);
     // Top-left: cash, name, health bar, ammo.
@@ -363,8 +363,8 @@ export function createRenderer(canvas) {
     rect(26, 74, 150 * Math.max(0, p.health / 100), 12, p.health > 40 ? '#7ee081' : '#e5534b');
     label('HP', 182, 86, 12, PALETTE.text, 'left', 'bold');
     label(`AMMO ${p.ammo}`, 196, 44, 15, PALETTE.text, 'left', 'bold');
-    paintStars(state.police.stars);
-    paintMinimap(state);
+    drawStars(state.police.stars);
+    drawMinimap(state);
     // Clock and district under the minimap.
     const hh = Math.floor(state.dayMinutes / 60);
     const mm = Math.floor(state.dayMinutes % 60);
@@ -414,7 +414,7 @@ export function createRenderer(canvas) {
   }
 
   /** A centred panel with a big title, lines of text and a prompt at the foot. */
-  function paintPanel(title, lines, prompt, accent) {
+  function drawPanel(title, lines, prompt, accent) {
     const width = 720;
     const height = 150 + lines.length * 34 + 60;
     const x = (VIEW.width - width) / 2;
@@ -431,11 +431,11 @@ export function createRenderer(canvas) {
   }
 
   function draw(state, screen, extra) {
-    paintWorld(state);
+    drawWorld(state);
     if (screen === SCREEN_TITLE) {
       rect(0, 0, VIEW.width, VIEW.height, 'rgba(8,14,20,0.55)');
       const saveLine = extra && extra.saveSummary ? [extra.saveSummary] : [];
-      paintPanel('SOLARA BAY', [
+      drawPanel('SOLARA BAY', [
         'Mara Voss is back in Solara Bay — broke, and owed a favour by Otto.',
         'Steal cars, outrun the police, run five story missions, survive the Bay.',
         'WASD move / drive • E steal car • F punch • Click to shoot • P pause • G save',
@@ -446,24 +446,24 @@ export function createRenderer(canvas) {
       ], extra && extra.hasSave ? 'Press Enter: Continue • N: New game' : 'Press Enter or click to start', PALETTE.gold);
       return;
     }
-    paintHud(state);
+    drawHud(state);
     if (screen === SCREEN_PAUSED) {
-      paintPanel('PAUSED', [
+      drawPanel('PAUSED', [
         'The Bay waits for no one — except now.',
         `Cash $${state.cash.toLocaleString('en-US')} • Missions done ${state.missions.completedCount}/5`,
       ], 'Press P to resume • G to save');
     } else if (screen === SCREEN_BUSTED) {
-      paintPanel('BUSTED', [
+      drawPanel('BUSTED', [
         'The Solara Bay police caught up with Mara.',
         'You lose $200 bail and the heat cools off.',
       ], 'Press Enter to get back out there', '#5a9dff');
     } else if (screen === SCREEN_WASTED) {
-      paintPanel('WASTED', [
+      drawPanel('WASTED', [
         'Mara went down in Solara Bay.',
         'The story is not over — the hospital patches her up.',
       ], 'Press Enter to continue', PALETTE.red);
     } else if (screen === SCREEN_DONE) {
-      paintPanel('STORY COMPLETE', [
+      drawPanel('STORY COMPLETE', [
         'Mara Voss drives out of Solara Bay a legend — and free.',
         `Final cash $${state.cash.toLocaleString('en-US')} • Cars stolen ${state.stats.carsStolen}`,
       ], 'Press Enter to keep roaming free', PALETTE.gold);

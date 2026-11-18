@@ -39,16 +39,12 @@ function fillBlockWithBuildings(rect, random, buildings) {
   for (let cx = 0; cx < cols; cx += 1) {
     for (let cy = 0; cy < rows; cy += 1) {
       if (random.chance(0.12)) continue; // empty lot / plaza
-      // Keep every building big enough to see and to collide with.
       const w = Math.max(40, cellW * random.range(0.62, 0.86));
       const h = Math.max(40, cellH * random.range(0.62, 0.86));
       const x = rect.x0 + cx * cellW + (cellW - w) / 2;
       const y = rect.y0 + cy * cellH + (cellH - h) / 2;
       buildings.push({
-        x,
-        y,
-        w,
-        h,
+        x, y, w, h,
         color: random.pick(PALETTE.buildingRoof),
         tall: random.chance(0.22),
         name: random.chance(0.3) ? random.pick(LANDMARK_NAMES) : '',

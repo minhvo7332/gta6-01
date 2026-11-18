@@ -6,9 +6,8 @@
 export function createRandom(seed) {
   let a = seed | 0;
   let b = (seed ^ 0x9e3779b9) | 0;
-  let c = (seed * 0x85ebca6b) | 0;
-  let d = (seed * 0x85ebca6b) | 0;
-  // Warm the state up so early draws do not correlate with the seed.
+  let c = Math.imul(seed, 0x85ebca6b) | 0;
+  let d = Math.imul(seed, 0xc2b2ae35) | 0;
   function next() {
     const t = (a + b) | 0;
     a = b ^ (b >>> 9);
@@ -19,6 +18,7 @@ export function createRandom(seed) {
     c = (c + out) | 0;
     return (out >>> 0) / 4294967296;
   }
+  // Warm the state up so early draws do not correlate with the seed.
   for (let i = 0; i < 12; i += 1) next();
   next.range = (lo, hi) => lo + next() * (hi - lo);
   next.int = (lo, hi) => Math.floor(next.range(lo, hi + 1));

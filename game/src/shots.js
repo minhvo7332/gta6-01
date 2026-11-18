@@ -73,11 +73,14 @@ function driveToward(world, tx, ty) {
   let diff = want - p.angle;
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
+  const speedNow = Math.abs(p.carSpeed || 0);
   return {
     ...base,
     steer: diff > 0.12 ? 1 : diff < -0.12 ? -1 : 0,
-    // Slow down for hard turns so the car does not overshoot into a corner.
-    throttle: Math.abs(diff) > 1.9 ? 0 : Math.abs(diff) > 0.7 ? 0.5 : 1,
+    // Creep forward from a standstill even into a hard turn — steering only
+    // bites once the car is moving, so a stopped car must roll to turn.
+    // At speed, slow down for hard turns so it does not overshoot a corner.
+    throttle: speedNow < 80 ? 1 : Math.abs(diff) > 1.9 ? 0 : Math.abs(diff) > 0.7 ? 0.5 : 1,
   };
 }
 
@@ -120,6 +123,9 @@ export function stageShot(name, world) {
     stealFirstCar(world);
     runFor(world, 8, () => driveToward(world, 640, 640));
     cleanFrame(st);
+    // Roll on past the garage so the frame catches the car moving, not parked.
+    runFor(world, 5, () => driveToward(world, 1575, 1125));
+    cleanFrame(st);
     say(st.missions, 'Mission 1 — Back in the Bay: drive to Otto’s garage in Old Town.', 30);
     return { screen: SCREEN_PLAY, hasSave: false };
   }
@@ -152,6 +158,8 @@ export function stageShot(name, world) {
   st.player.angle = Math.PI / 4;
   st.player.ammo = 48;
   runFor(world, 4, () => stillCtl(st.player));
+  // The gang shoots during the wait — patch Mara up for a clean frame.
+  st.player.health = 100;
   say(st.missions, 'HARBOR HEIST — grab the 4 cash bags. The Kings will not hand them over quietly.', 30);
   return { screen: SCREEN_PLAY, hasSave: false };
 }

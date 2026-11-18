@@ -7,12 +7,12 @@ import { SAVE_KEY } from './config.js';
 const SAVE_VERSION = 1;
 
 /** Pick the fields a save carries out of the live world state. */
-function snapshot(world) {
-  const p = world.player;
-  const m = world.missions;
+function makeSnapshot(state) {
+  const p = state.player;
+  const m = state.missions;
   return {
     version: SAVE_VERSION,
-    cash: world.cash,
+    cash: state.cash,
     missionIndex: m.index,
     completedCount: m.completedCount,
     health: p.health,
@@ -20,13 +20,14 @@ function snapshot(world) {
     x: p.x,
     y: p.y,
     angle: p.angle,
-    playSeconds: Math.round(world.elapsed),
+    playSeconds: Math.round(state.elapsed),
   };
 }
 
-export function saveGame(world) {
+/** Write the current state to localStorage. Takes the state object itself. */
+export function saveGame(state) {
   try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot(world)));
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify(makeSnapshot(state)));
     return true;
   } catch {
     return false; // storage off or full

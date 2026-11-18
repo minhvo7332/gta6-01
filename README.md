@@ -4,9 +4,9 @@
 [![rank](https://make.fun/badge/gta6-01/minhvo7332/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/minhvo7332/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-**Solara Bay** is an original open-world crime game in the spirit of GTA 6. You are Mara Voss, an ex-getaway driver back in a sun-soaked coastal city, broke and owing a favour to Otto the fixer. Explore the city on foot or by car, steal cars off the street, outrun the police when the wanted stars climb, and run five story missions against The Kings — from stealing Otto's first getaway car to a final chase for the highway gate.
+**Solara Bay** is an original open-world crime game in the spirit of GTA 6. You play Mara Voss, an ex-getaway driver back in a sun-soaked coastal city, broke and owing a favour to Otto the fixer. Roam the city on foot or behind the wheel, steal cars off the street, outrun the police as the wanted stars climb, and run five story missions against The Kings — from stealing Otto's first getaway car to a final chase for the highway gate.
 
-Everything in it is invented here: the city, its six districts, the characters, the vehicles, the story, the art, the sound and the music. Nothing is taken from any commercial game.
+The city, its six districts, the characters, the vehicles, the story, the art, the sound and the music are all invented here. Nothing is taken from any commercial game.
 
 ## Play it
 

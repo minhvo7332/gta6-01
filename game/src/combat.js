@@ -25,12 +25,12 @@ export function createCombat() {
 }
 
 /** Everyone a punch or a bullet can hit. */
-function hittable(world) {
+function targetsInWorld(world) {
   return [...world.peds, ...world.missions.enemies, ...world.police.cops];
 }
 
 /** Kill a target: mark it dead and raise the heat for the crime. */
-function killTarget(world, target) {
+function markKilled(world, target) {
   target.dead = true;
   const bystander = !target.gang && !world.police.cops.includes(target);
   addHeat(world.police, bystander ? WANTED.killHeat : WANTED.killHeat / 2);
@@ -42,7 +42,7 @@ export function tryPunch(combat, world, audio) {
   if (audio) audio.punch();
   const p = world.player;
   let landed = false;
-  for (const t of hittable(world)) {
+  for (const t of targetsInWorld(world)) {
     if (t.dead) continue;
     if (distance(p.x, p.y, t.x, t.y) > PLAYER.punchRange) continue;
     const ang = Math.atan2(t.y - p.y, t.x - p.x);
@@ -60,7 +60,7 @@ export function tryPunch(combat, world, audio) {
 }
 
 /** Fire one bullet from (x, y) along `angle`; returns the bullet, or null. */
-function fireBullet(combat, x, y, angle, speed, life, fromPlayer) {
+function spawnBullet(combat, x, y, angle, speed, life, fromPlayer) {
   const bullet = { x, y, angle, speed, life, fromPlayer };
   combat.bullets.push(bullet);
   return bullet;
@@ -74,7 +74,7 @@ export function tryShoot(combat, world, audio, targetX, targetY) {
   p.ammo -= 1;
   const angle = Math.atan2(targetY - p.y, targetX - p.x);
   p.angle = angle;
-  fireBullet(combat, p.x + Math.cos(angle) * 20, p.y + Math.sin(angle) * 20, angle, 900, 0.5, true);
+  spawnBullet(combat, p.x + Math.cos(angle) * 20, p.y + Math.sin(angle) * 20, angle, 900, 0.5, true);
   if (audio) audio.shoot();
   addHeat(world.police, WANTED.shootHeat);
   return true;
@@ -90,17 +90,17 @@ export function enemyShoot(combat, world, dt) {
     if (t.shootTimer > 0 || d > 380 || d < 60) continue;
     t.shootTimer = t.gang ? 1.1 : 1.6;
     const angle = Math.atan2(p.y - t.y, p.x - t.x);
-    fireBullet(combat, t.x, t.y, angle, 700, 0.55, false);
+    spawnBullet(combat, t.x, t.y, angle, 700, 0.55, false);
   }
 }
 
-function stepPlayerBullet(combat, world, b) {
-  for (const t of hittable(world)) {
+function resolvePlayerBullet(combat, world, b) {
+  for (const t of targetsInWorld(world)) {
     if (t.dead) continue;
     if (distance(b.x, b.y, t.x, t.y) >= BULLET_HIT_DIST) continue;
     t.health -= PLAYER.pistolDamage;
     b.life = 0;
-    if (t.health <= 0) killTarget(world, t);
+    if (t.health <= 0) markKilled(world, t);
     return;
   }
   // A shot can also slow a police car: hit its engine and it limps.
@@ -113,7 +113,7 @@ function stepPlayerBullet(combat, world, b) {
   }
 }
 
-function stepEnemyBullet(combat, world, b) {
+function resolveEnemyBullet(combat, world, b) {
   const p = world.player;
   if (p.inCar) return;
   if (distance(b.x, b.y, p.x, p.y) < ENEMY_HIT_DIST) {
@@ -128,8 +128,8 @@ export function stepBullets(combat, world, dt) {
     b.x += Math.cos(b.angle) * b.speed * dt;
     b.y += Math.sin(b.angle) * b.speed * dt;
     if (b.life <= 0) continue;
-    if (b.fromPlayer) stepPlayerBullet(combat, world, b);
-    else stepEnemyBullet(combat, world, b);
+    if (b.fromPlayer) resolvePlayerBullet(combat, world, b);
+    else resolveEnemyBullet(combat, world, b);
   }
   combat.bullets = combat.bullets.filter((b) => b.life > 0);
   if (combat.punchTimer > 0) combat.punchTimer -= dt;
@@ -153,7 +153,7 @@ export function spawnPickups(random, count) {
   return pickups;
 }
 
-function takePickup(pk, world, audio) {
+function collectPickup(pk, world, audio) {
   const p = world.player;
   pk.taken = true;
   if (pk.kind === 'health') p.health = Math.min(PLAYER.health, p.health + HEALTH_PACK);
@@ -167,6 +167,6 @@ export function stepPickups(pickups, world, dt, audio) {
   for (const pk of pickups) {
     if (pk.taken) continue;
     pk.bob += dt * 3;
-    if (distance(p.x, p.y, pk.x, pk.y) < PICKUP_DIST) takePickup(pk, world, audio);
+    if (distance(p.x, p.y, pk.x, pk.y) < PICKUP_DIST) collectPickup(pk, world, audio);
   }
 }
