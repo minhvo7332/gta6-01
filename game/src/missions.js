@@ -1,228 +1,190 @@
-// Missions and the story: five jobs from Otto, plus repeatable side deliveries.
-// A mission is a list of stages; each stage is one check (steal a car, reach a
-// marker, collect bags, survive a chase). Finishing a stage pays the reward and
-// unlocks the next mission. The story is Mara Voss, an original character.
+// The story: "The Tide Job". Dana Vega, ex-mechanic, runs five jobs for
+// fixer Marlo Crane across Azura Bay — deliveries, a boosted car, a gang
+// problem, a police heatwave and one last bank job. Each job pays cash;
+// finishing one starts the next.
+import { dist2 } from './rng.js';
+import { spawnGang } from './combat.js';
+import { CAR_MODELS } from './vehicles.js';
 
-import { MISSION_DEFS, SIDE_JOB } from './config.js';
-import { distance } from './random.js';
+export const MISSIONS = [
+  {
+    id: 'first-delivery', title: 'First Delivery', pay: 500,
+    briefing: 'Marlo Crane needs a package moved. Pick it up at the Harbor Docks and drop it on the Neon Mile. Keep it quiet.',
+  },
+  {
+    id: 'hot-wheels', title: 'Hot Wheels', pay: 800,
+    briefing: 'A Comet GT is parked by the garage district. Boost it and bring it to Vega\'s Garage. The owner will not miss it. Much.',
+  },
+  {
+    id: 'loud-neighbors', title: 'Loud Neighbors', pay: 1200,
+    briefing: 'The Green Jackets are muscling into the Ironworks Yard. Marlo wants three of them gone. Loud is fine.',
+  },
+  {
+    id: 'heat-wave', title: 'Heat Wave', pay: 1500,
+    briefing: 'The APD is crawling all over the Mile. Stay hot for sixty seconds and slip away clean. Do not get busted.',
+  },
+  {
+    id: 'tide-job', title: 'The Tide Job', pay: 3000,
+    briefing: 'The big one. Hit the Azura National Bank, grab the tide money, and run for the escape boat on Coral Keys beach.',
+  },
+];
 
-const BAG_CASH = 150;
-const ARRIVE_DIST = 70;
-const BAG_DIST = 44;
-
-/** Fresh mission state: which job, which stage, bags, gang, messages. */
 export function createMissionState() {
-  return {
-    index: 0, // which mission is next (0-based); MISSION_DEFS.length = story done
-    stage: 0,
-    active: false,
-    timer: 0,
-    survive: 0,
-    arrived: false,
-    collected: 0,
-    bags: [], // {x, y, taken}
-    enemies: [], // gang peds spawned by the current mission
-    message: '',
-    messageTimer: 0,
-    sideJob: null, // {x, y, timer, active}
-    completedCount: 0,
-  };
+  return { index: 0, step: 0, timer: 0, kills: 0, banner: '', bannerAt: 0, cooldown: 0, done: false, grabTimer: 0 };
 }
 
-export function currentMission(missions) {
-  return missions.index < MISSION_DEFS.length ? MISSION_DEFS[missions.index] : null;
-}
+function spot(G, name) { return G.city.spots[name]; }
 
-export function currentStage(missions) {
-  const def = currentMission(missions);
-  return def ? def.stages[missions.stage] : null;
-}
-
-/** Show a line in the dialogue bar for a few seconds. */
-export function say(missions, text, seconds = 6) {
-  missions.message = text;
-  missions.messageTimer = seconds;
-}
-
-/** Heat for a stage that demands a wanted level: 3 stars or 4 stars. */
-function heatForStars(wanted) {
-  return wanted === 3 ? 120 : 200;
-}
-
-function placeBags(missions, stage, random) {
-  missions.bags = [];
-  for (let i = 0; i < stage.count; i += 1) {
-    missions.bags.push({
-      x: stage.x + random.range(-160, 160),
-      y: stage.y + random.range(-120, 120),
-      taken: false,
-    });
+export function startMission(G, idx) {
+  const m = G.missions;
+  m.index = idx; m.step = 0; m.timer = 0; m.kills = 0; m.grabTimer = 0;
+  const def = MISSIONS[idx];
+  if (!def) { m.done = true; return; }
+  G.message(`New job: ${def.title}`, '#ffd23a');
+  if (def.id === 'hot-wheels') {
+    // Park the target Comet GT near the garage.
+    const s = spot(G, 'garage');
+    const car = G.spawnTargetCar(s.x + 120, s.y + 40, 1);
+    m.targetCar = car;
+  }
+  if (def.id === 'loud-neighbors') {
+    const s = spot(G, 'ironworks');
+    m.gang = spawnGang(G, s.x, s.y, 4);
+  }
+  if (def.id === 'heat-wave') {
+    G.wanted.heat = 2.2; G.wanted.level = 2;
+    G.message('The APD is on you! Survive 60 seconds.', '#ff4a4a');
+  }
+  if (def.id === 'tide-job') {
+    G.wanted.heat = 0; G.wanted.level = 0;
   }
 }
 
-function placeGang(missions, stage, random) {
-  missions.enemies = [];
-  for (let i = 0; i < 4; i += 1) {
-    missions.enemies.push({
-      x: stage.x + random.range(-220, 220),
-      y: stage.y + random.range(-180, 180),
-      angle: 0,
-      speed: 70,
-      shirt: '#3a3f46',
-      skin: '#c98a5a',
-      gang: true,
-      health: 60,
-      flee: 0,
-      targetX: stage.x,
-      targetY: stage.y,
-      retarget: 3,
-      shootTimer: random.range(0.5, 2),
-      dead: false,
-    });
+// The current objective marker, or null when between jobs.
+export function missionMarker(G) {
+  const m = G.missions;
+  if (m.done || m.cooldown > 0) return null;
+  const def = MISSIONS[m.index];
+  if (!def) return null;
+  const p = G.player;
+  if (def.id === 'first-delivery') {
+    return m.step === 0 ? { ...spot(G, 'docks'), label: 'Pick up the package' }
+      : { ...spot(G, 'neonMile'), label: 'Deliver the package' };
   }
-}
-
-/** Apply a stage's opening conditions: heat, timer, survive clock, bags, gang. */
-function prepareStage(missions, world, stage, random) {
-  if (!stage) return;
-  if (stage.kind === 'collect' && stage.count > 0) {
-    placeBags(missions, stage, random);
-    placeGang(missions, stage, random);
+  if (def.id === 'hot-wheels') {
+    if (m.step === 0) return { x: m.targetCar.x, y: m.targetCar.y, label: 'Steal the Comet GT', car: m.targetCar };
+    return { ...spot(G, 'garage'), label: "Bring it to Vega's Garage" };
   }
-  if (stage.wanted) world.police.heat = Math.max(world.police.heat, heatForStars(stage.wanted));
-  if (stage.timer) missions.timer = stage.timer;
-  if (stage.survive) missions.survive = stage.survive;
-}
-
-export function startMission(missions, world, random) {
-  const def = currentMission(missions);
-  if (!def) return;
-  missions.active = true;
-  missions.stage = 0;
-  missions.arrived = false;
-  missions.collected = 0;
-  missions.bags = [];
-  missions.enemies = [];
-  prepareStage(missions, world, def.stages[0], random);
-  say(missions, `${def.title}: ${def.brief}`);
-}
-
-/** Move to the next stage, or finish the mission and pay out. */
-function advance(missions, world, def) {
-  missions.stage += 1;
-  missions.arrived = false;
-  if (missions.stage < def.stages.length) {
-    const next = def.stages[missions.stage];
-    prepareStage(missions, world, next, world.random);
-    say(missions, next.text, 6);
-    return null;
+  if (def.id === 'loud-neighbors') {
+    return { ...spot(G, 'ironworks'), label: `Deal with the Green Jackets (${m.kills}/3)` };
   }
-  // Mission complete: pay, unlock the next one.
-  world.cash += def.reward;
-  missions.completedCount += 1;
-  missions.index += 1;
-  missions.active = false;
-  if (world.audio) world.audio.mission();
-  say(missions, `MISSION COMPLETE — ${def.title}. ${def.outro}`, 8);
-  return 'done';
-}
-
-function failMission(missions, reason) {
-  missions.active = false;
-  // A failed job leaves nothing behind: clear its bags and its gang.
-  missions.bags = [];
-  missions.enemies = [];
-  say(missions, `${reason} Talk to Otto to try again.`, 7);
-  return 'failed';
-}
-
-function checkStealStage(missions, world, def) {
-  if (world.player.inCar) return advance(missions, world, def);
+  if (def.id === 'heat-wave') {
+    return { x: p.x, y: p.y, label: `Stay alive — ${Math.ceil(60 - m.timer)}s of heat left` };
+  }
+  if (def.id === 'tide-job') {
+    return m.step === 0 ? { ...spot(G, 'bank'), label: 'Hit the bank — hold position to crack the vault' }
+      : { ...spot(G, 'boat'), label: 'Run for the escape boat!' };
+  }
   return null;
 }
 
-function checkGotoStage(missions, world, def, stage, dt) {
-  if (stage.timer) {
-    missions.timer -= dt;
-    if (missions.timer <= 0) return failMission(missions, 'Too slow — the job fell through.');
-  }
-  const player = world.player;
-  if (!missions.arrived && distance(player.x, player.y, stage.x, stage.y) < ARRIVE_DIST) {
-    missions.arrived = true;
-    if (stage.survive) say(missions, `Hold the gate — survive ${stage.survive}s of chase!`, 4);
-  }
-  if (!missions.arrived) return null;
-  if (stage.survive) {
-    // Survive the chase timer once arrived, wherever the player drives.
-    missions.survive -= dt;
-    if (missions.survive <= 0) return advance(missions, world, def);
-    return null;
-  }
-  return advance(missions, world, def);
+export function objectiveText(G) {
+  const m = G.missions;
+  if (m.done) return 'Story complete — Azura Bay is yours. Free roam!';
+  if (m.cooldown > 0) return 'Job done. Marlo is lining up the next one…';
+  const marker = missionMarker(G);
+  const def = MISSIONS[m.index];
+  return marker ? `${def.title}: ${marker.label}` : def.title;
 }
 
-function checkCollectStage(missions, world, def, stage) {
-  for (const bag of missions.bags) {
-    if (bag.taken) continue;
-    if (distance(world.player.x, world.player.y, bag.x, bag.y) >= BAG_DIST) continue;
-    bag.taken = true;
-    missions.collected += 1;
-    world.cash += BAG_CASH;
-    if (world.audio) world.audio.cash();
-    say(missions, `Cash bag ${missions.collected}/${stage.count} — keep moving!`, 3);
+export function onMissionKill(G) {
+  const m = G.missions;
+  if (m.done) return;
+  const def = MISSIONS[m.index];
+  if (def && def.id === 'loud-neighbors') {
+    m.kills++;
+    if (m.kills >= 3) completeMission(G);
   }
-  if (missions.collected >= stage.count) return advance(missions, world, def);
-  return null;
 }
 
-/** Advance the active stage; returns 'done' | 'failed' | null. */
-export function stepMissions(missions, world, dt, random) {
-  if (missions.messageTimer > 0) missions.messageTimer -= dt;
-  if (!missions.active) return null;
-  const def = currentMission(missions);
-  if (!def) {
-    missions.active = false;
-    return null;
-  }
-  const stage = def.stages[missions.stage];
-  if (!stage) return null;
-  if (stage.kind === 'steal') return checkStealStage(missions, world, def);
-  if (stage.kind === 'goto') return checkGotoStage(missions, world, def, stage, dt);
-  if (stage.kind === 'collect') return checkCollectStage(missions, world, def, stage);
-  return null;
+function completeMission(G) {
+  const m = G.missions;
+  const def = MISSIONS[m.index];
+  G.player.cash += def.pay;
+  G.audio.missionOk();
+  m.banner = `JOB DONE — ${def.title}  +$${def.pay}`;
+  m.bannerAt = G.time;
+  m.cooldown = 3;
+  G.message(`Marlo paid you $${def.pay}.`, '#7ad87a');
 }
 
-/** Start the next mission (walk to Otto's marker, or press Q in free roam). */
-export function tryStartMission(missions, world, random) {
-  if (missions.active) return false;
-  if (!currentMission(missions)) return false;
-  startMission(missions, world, random);
-  return true;
-}
-
-/** A repeatable side delivery: a parcel marker appears elsewhere in the city. */
-export function startSideJob(missions, world, random) {
-  if (missions.active || missions.sideJob) return false;
-  const x = 300 + random.range(0, 3000);
-  const y = 300 + random.range(0, 1900);
-  missions.sideJob = { x, y, timer: SIDE_JOB.time, active: true };
-  say(missions, SIDE_JOB.text, 6);
-  return true;
-}
-
-export function stepSideJob(missions, world, dt) {
-  const job = missions.sideJob;
-  if (!job) return;
-  job.timer -= dt;
-  if (job.timer <= 0) {
-    missions.sideJob = null;
-    say(missions, 'Side job expired — the parcel went to someone else.', 5);
+export function updateMissions(G, dt) {
+  const m = G.missions;
+  const p = G.player;
+  if (m.done) return;
+  if (m.cooldown > 0) {
+    m.cooldown -= dt;
+    if (m.cooldown <= 0) {
+      if (m.index + 1 >= MISSIONS.length) {
+        m.done = true;
+        m.banner = 'THE TIDE JOB IS DONE — AZURA BAY IS YOURS';
+        m.bannerAt = G.time;
+      } else {
+        startMission(G, m.index + 1);
+      }
+    }
     return;
   }
-  if (distance(world.player.x, world.player.y, job.x, job.y) < ARRIVE_DIST) {
-    world.cash += SIDE_JOB.reward;
-    missions.sideJob = null;
-    if (world.audio) world.audio.cash();
-    say(missions, `Side job done. +$${SIDE_JOB.reward}`, 5);
+  const def = MISSIONS[m.index];
+  if (!def) return;
+  const marker = missionMarker(G);
+  if (!marker) return;
+
+  if (def.id === 'first-delivery') {
+    if (dist2(p.x, p.y, marker.x, marker.y) < 70 * 70) {
+      if (m.step === 0) {
+        m.step = 1;
+        G.audio.pickup();
+        G.message('Package secured. Now the Neon Mile.', '#ffd23a');
+      } else {
+        completeMission(G);
+      }
+    }
+  } else if (def.id === 'hot-wheels') {
+    if (m.step === 0 && p.car === m.targetCar) {
+      m.step = 1;
+      G.message('That is the one. Get it to the garage.', '#ffd23a');
+    } else if (m.step === 1 && p.car === m.targetCar && dist2(p.x, p.y, marker.x, marker.y) < 80 * 80) {
+      completeMission(G);
+    }
+  } else if (def.id === 'heat-wave') {
+    if (G.wanted.level >= 2) {
+      m.timer += dt;
+      if (m.timer >= 60) {
+        G.wanted.heat = 0; G.wanted.level = 0;
+        G.cops = [];
+        completeMission(G);
+      }
+    }
+  } else if (def.id === 'tide-job') {
+    if (m.step === 0) {
+      if (dist2(p.x, p.y, marker.x, marker.y) < 80 * 80) {
+        m.grabTimer += dt;
+        if (Math.floor(m.grabTimer * 2) !== Math.floor((m.grabTimer - dt) * 2)) {
+          G.message(`Cracking the vault… ${Math.ceil(4 - m.grabTimer)}s`, '#ffd23a');
+        }
+        if (m.grabTimer >= 4) {
+          m.step = 1;
+          G.wanted.heat = 3.2; G.wanted.level = 3;
+          G.audio.siren();
+          G.message('Vault open! The alarm is screaming — RUN to the boat!', '#ff4a4a');
+        }
+      } else {
+        m.grabTimer = Math.max(0, m.grabTimer - dt);
+      }
+    } else if (dist2(p.x, p.y, marker.x, marker.y) < 70 * 70) {
+      completeMission(G);
+    }
   }
+  // 'loud-neighbors' completes from onMissionKill.
 }
